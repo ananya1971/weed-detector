@@ -491,13 +491,12 @@ const WeatherForecast = ({ latitude = 18.59, longitude = -72.33 }) => { // Defau
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const API_KEY = 'eb5d6ac67ad139256ed22dc56b98b902';
+    const API_KEY = process.env.REACT_APP_OPENWEATHER_API_KEY;
 
     useEffect(() => {
         const fetchWeather = async () => {
             setLoading(true);
-            setError(null);
-            if (API_KEY === 'YOUR_OPENWEATHERMAP_API_KEY' || !API_KEY) {
+            if (!API_KEY) { 
                 setError(getEnglishString("open_weather_api_key_error"));
                 setLoading(false);
                 return;

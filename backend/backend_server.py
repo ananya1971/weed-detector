@@ -4,6 +4,15 @@ import datetime
 import random
 import base64
 import re # Import regex for base64 parsing
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+
+if OPENWEATHER_API_KEY is None:
+    print("Warning: OPENWEATHER_API_KEY not found in backend/.env or environment variables!")
 
 app = Flask(__name__)
 CORS(app) # This enables CORS for all routes
