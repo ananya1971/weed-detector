@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.heat'; // Make sure to import the heat plugin
 
-// Fix for default marker icon in Leaflet
+// Import the new LanguageInstructions component
+import LanguageInstructions from './languageInstructions';
+
+// Fix for default marker icon in Leaflet (essential for any Leaflet map using default markers)
 import L from 'leaflet';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -13,8 +15,125 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
+// --- Hardcoded English Strings (for primary display) ---
+// For a larger app, these would typically still be in a translations file
+// but simplified to only English keys if not using a translation library.
+const englishStrings = {
+    // App Title & Slogan
+    app_title: "Haiti Agri-Tech Dashboard",
+    app_slogan: "Weed Detection & Management for Farmers",
 
-// --- Component 1: ImageDisplay (now embedded) ---
+    // Upload Section
+    upload_section_header: "Upload Your Own Image for Analysis",
+    choose_image_button: "Choose Image to Upload",
+    uploading_button: "Uploading...",
+    upload_error: "Please upload an image file (e.g., JPEG, PNG).",
+    upload_failed: "Failed to upload image for processing. Please try again.",
+    upload_success: "Image uploaded successfully! See analysis below.",
+    processing_image: "Processing uploaded image...",
+    error_loading_dashboard: (backendUrl) => `Failed to load dashboard data. Is the backend running at ${backendUrl}?`,
+
+    // Image & Map Section
+    current_image_header: "Current Image & Weed Detections",
+    map_info_latest: (imageSource) => `Displaying data for the ${imageSource} image.`,
+    latest_drone_image: "latest drone",
+    uploaded_image: "uploaded",
+    loading_image_data: "Loading initial image data...",
+    weed_map_header: "Weed Distribution Map",
+    map_info_dots: "Red dots indicate individual weed locations.",
+
+    // Weed Treatment Plan Section
+    weed_treatment_plan_header: "Weed Treatment Plan",
+    no_weeds_detected: "No weeds detected yet, or data not loaded.",
+    select_weed_type_label: "Select Weed Type:",
+    recommendation_title: "Recommended Methods:",
+    notes_prefix: "Notes:",
+    control_label: "Control",
+
+    // Weather Forecast Section
+    weather_forecast_header: (location) => `Weather Forecast for ${location}`,
+    loading_weather: "Loading weather...",
+    no_weather_data: "No weather data available.",
+    current_conditions_header: "Current Conditions",
+    temperature_label: "Temperature:",
+    humidity_label: "Humidity:",
+    wind_label: "Wind:",
+    rain_label: "Rain (1h):",
+    farming_tip_prefix: "Farming Tip:",
+    rain_expected_tip: "Rain expected: Avoid spraying today.",
+    hot_tip: "Very hot: Consider early morning/late evening activities.",
+    cold_tip: "Cold: Check crop tolerance.",
+    favorable_tip: "Favorable conditions for field work.",
+    five_day_forecast_header: "5-Day Forecast",
+    rain_probability_label: "Rain Prob:",
+    open_weather_api_key_error: "Please replace 'YOUR_OPENWEATHERMAP_API_KEY' with your actual OpenWeatherMap API key.",
+    failed_to_fetch_weather_data: "Failed to fetch weather data. Please check your API key and internet connection.",
+
+    // Footer
+    footer_text: "© 2025 Haiti Hackathon Team. Empowering Farmers with Technology.",
+
+    // Other specific labels
+    confidence_label: "Confidence:",
+    weed_label_title: "Weed",
+
+    // Weed Type Translations (English only for main UI)
+    "weed_types": {
+        "Common purslane": "Common purslane",
+        "Goosegrass": "Goosegrass",
+        "Asthma-plant": "Asthma-plant",
+        "Blue porterweed": "Blue porterweed",
+        "Santa Maria feverfew": "Santa Maria feverfew",
+        "Water hyacinth": "Water hyacinth",
+        "Climbing dayflower": "Climbing dayflower",
+        "Common plantain": "Common plantain",
+        "Arrowleaf sida": "Arrowleaf sida",
+        "Oriental false hawksbeard": "Oriental false hawksbeard",
+        "Unknown Weed": "Unknown Weed",
+    },
+    // Treatment Method Translations (English only for main UI)
+    "treatment_methods": {
+        "Manual removal": "Manual removal",
+        "Mulching": "Mulching",
+        "Cultivation": "Cultivation",
+        "Pre-emergent herbicides": "Pre-emergent herbicides",
+        "Post-emergent herbicides": "Post-emergent herbicides",
+        "Improve turf density": "Improve turf density",
+        "Containment": "Containment",
+        "Herbicides": "Herbicides",
+        "Early detection": "Early detection",
+        "Biological control": "Biological control",
+        "Repeated mowing/trimming": "Repeated mowing/trimming",
+        "Improve soil health": "Improve soil health",
+        "Consult an expert": "Consult an expert",
+        "Mowing": "Mowing"
+    },
+    // Treatment Notes Translations (English only for main UI)
+    "treatment_notes": {
+        "Common purslane": "Produces many seeds quickly; remove before flowering. Can re-root from stem fragments.",
+        "Goosegrass": "Thrives in compacted soil; aeration can help. Spreads by seed and tillers.",
+        "Asthma-plant": "Prolific seed producer; control before it sets seed. Sap can be an irritant.",
+        "Blue porterweed": "Fast-growing and can outcompete native species. Monitor closely.",
+        "Santa Maria feverfew": "Highly toxic to livestock and can cause allergies in humans. Prioritize eradication.",
+        "Water hyacinth": "Forms dense mats, depleting oxygen and blocking waterways. Requires persistent management.",
+        "Climbing dayflower": "Can quickly cover and smother desirable plants. Watch for new shoots.",
+        "Common plantain": "Tolerant of compacted soils and high traffic. Good lawn health is a preventative measure.",
+        "Arrowleaf sida": "Resilient perennial; requires persistent effort for complete removal. Prevents re-establishment.",
+        "Oriental false hawksbeard": "Prolific seed producer; prioritize control to limit spread in disturbed areas.",
+        "Unknown Weed": "Further identification is highly recommended for effective long-term management."
+    }
+};
+
+// Helper function to get the English string, handling interpolation
+const getEnglishString = (key, ...args) => {
+    let str = englishStrings[key];
+    if (typeof str === 'function') {
+        return str(...args);
+    }
+    return str || key; // Fallback to key if not found
+};
+
+
+// --- Component 1: ImageDisplay ---
 const ImageDisplay = ({ imageUrl, detections }) => {
     const imgRef = useRef(null);
     const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
@@ -61,13 +180,16 @@ const ImageDisplay = ({ imageUrl, detections }) => {
                     key={index}
                     style={{
                         ...imageDisplayStyles.boundingBox,
+                        borderColor: imageDisplayStyles.weedTypeColors[detection.weedType] || 'red',
                         ...scaleBox(detection.box),
-                        borderColor: imageDisplayStyles.weedTypeColors[detection.weedType] || 'red'
                     }}
-                    title={`Weed: ${detection.weedType || 'Unknown'} (Confidence: ${(detection.confidence * 100).toFixed(2)}%)`}
+                    // Title attribute displays English only
+                    title={`${englishStrings.weed_label_title}: ${englishStrings.weed_types[detection.weedType] || englishStrings.weed_types["Unknown Weed"]} (${englishStrings.confidence_label}: ${(detection.confidence * 100).toFixed(2)}%)`}
                 >
                     {detection.weedType && (
-                        <span style={imageDisplayStyles.weedLabel}>{detection.weedType}</span>
+                        <span style={imageDisplayStyles.weedLabel}>
+                            {englishStrings.weed_types[detection.weedType] || englishStrings.weed_types["Unknown Weed"]}
+                        </span>
                     )}
                 </div>
             ))}
@@ -97,11 +219,18 @@ const imageDisplayStyles = {
         boxSizing: 'border-box',
         opacity: 0.8,
     },
-    weedTypeColors: { // Define colors for different weed types
-        'Broadleaf Weed': 'green',
-        'Grassy Weed': 'blue',
-        'Nut Sedge': 'purple',
-        'Unknown Weed': 'red'
+    weedTypeColors: {
+        'Common purslane': 'darkred',
+        'Goosegrass': 'darkgreen',
+        'Asthma-plant': 'darkblue',
+        'Blue porterweed': 'purple',
+        'Santa Maria feverfew': 'orange',
+        'Water hyacinth': 'teal',
+        'Climbing dayflower': 'brown',
+        'Common plantain': 'olive',
+        'Arrowleaf sida': 'indigo',
+        'Oriental false hawksbeard': 'darkcyan',
+        'Unknown Weed': 'gray'
     },
     weedLabel: {
         position: 'absolute',
@@ -115,55 +244,26 @@ const imageDisplayStyles = {
     }
 };
 
-// --- Component 2: WeedMap (now embedded) ---
+// --- Component 2: WeedMap ---
 const WeedMap = ({ weedLocations }) => {
-    const mapRef = useRef();
     const HAITI_CENTER = [18.9712, -72.2852]; // Central Haiti
 
-    useEffect(() => {
-        if (mapRef.current && weedLocations && weedLocations.length > 0) {
-            const map = mapRef.current;
-
-            map.eachLayer((layer) => {
-                if (layer instanceof L.HeatLayer) {
-                    map.removeLayer(layer);
-                }
-            });
-
-            const heatData = weedLocations.map(loc => [
-                loc.lat,
-                loc.lng,
-                loc.confidence || 1
-            ]);
-
-            if (heatData.length > 0) {
-                const heatLayer = L.heatLayer(heatData, {
-                    radius: 25,
-                    blur: 15,
-                    maxZoom: 17,
-                    gradient: {
-                        0.0: 'blue',
-                        0.5: 'lime',
-                        0.7: 'yellow',
-                        1.0: 'red'
-                    }
-                });
-                heatLayer.addTo(map);
-            }
-
-            const latLngs = weedLocations.map(loc => [loc.lat, loc.lng]);
-            if (latLngs.length > 0) {
-                map.fitBounds(latLngs, { padding: [50, 50] });
-            }
-        }
-    }, [weedLocations]);
-
     return (
-        <MapContainer center={HAITI_CENTER} zoom={13} style={weedMapStyles.mapContainer} whenCreated={mapInstance => { mapRef.current = mapInstance }}>
+        <MapContainer center={HAITI_CENTER} zoom={13} style={weedMapStyles.mapContainer}>
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
             />
+            {weedLocations && weedLocations.map((loc, index) => (
+                <CircleMarker
+                    key={index}
+                    center={[loc.lat, loc.lng]}
+                    radius={6}
+                    color="red"
+                    fillColor="red"
+                    fillOpacity={0.8}
+                />
+            ))}
         </MapContainer>
     );
 };
@@ -175,48 +275,112 @@ const weedMapStyles = {
     }
 };
 
-// --- Component 3: TreatmentPlan (now embedded) ---
-const treatmentRecommendations = {
-    "Broadleaf Weed": {
-        title: "Broadleaf Weed Control",
-        methods: [
-            "Manual removal: Hand-pulling when young and soil is moist.",
-            "Mulching: Apply organic mulch to suppress growth.",
-            "Targeted herbicide: Use broadleaf-specific herbicides carefully if necessary (consult local agricultural extension for safe options).",
-        ],
-        notes: "Best time for control is before flowering. Ensure proper disposal to prevent seed spread."
-    },
-    "Grassy Weed": {
-        title: "Grassy Weed Control",
-        methods: [
-            "Hoeing: Shallow hoeing before weeds are established.",
-            "Competitive crops: Plant dense, healthy crops to outcompete grassy weeds.",
-            "Pre-emergent herbicide: Consider pre-emergent for large infestations (follow guidelines strictly).",
-        ],
-        notes: "Prevention is key. Clean equipment to avoid spreading seeds."
-    },
-    "Nut Sedge": {
-        title: "Nut Sedge Control",
-        methods: [
-            "Repeated cultivation: Disrupt tubers by repeated shallow cultivation.",
-            "Smothering: Use opaque tarps or cover crops to shade out sedge.",
-            "Specific herbicides: Some herbicides are effective but require precise application and timing.",
-        ],
-        notes: "Difficult to eradicate due to tubers. Persistence is required."
-    },
-    "Unknown Weed": {
-        title: "Unknown Weed - General Control",
-        methods: [
-            "Manual removal: Remove carefully to prevent spreading. Identify for better future treatment.",
-            "Improve soil health: Healthy soil supports strong crops that can outcompete weeds.",
-            "Consult an expert: Share images with a local agronomist for identification and advice.",
-        ],
-        notes: "Further identification is highly recommended for effective long-term management."
-    }
-};
-
+// --- Component 3: TreatmentPlan ---
 const TreatmentPlan = ({ classifiedWeeds }) => {
     const [selectedWeedType, setSelectedWeedType] = useState('');
+
+    const treatmentRecommendations = {
+        "Common purslane": {
+            title_key: "Common purslane",
+            methods_keys: [
+                "Manual removal",
+                "Mulching",
+                "Cultivation",
+            ],
+            notes_key: "Common purslane"
+        },
+        "Goosegrass": {
+            title_key: "Goosegrass",
+            methods_keys: [
+                "Pre-emergent herbicides",
+                "Post-emergent herbicides",
+                "Manual removal",
+            ],
+            notes_key: "Goosegrass"
+        },
+        "Asthma-plant": {
+            title_key: "Asthma-plant",
+            methods_keys: [
+                "Manual removal",
+                "Herbicides",
+                "Improve turf density",
+            ],
+            notes_key: "Asthma-plant"
+        },
+        "Blue porterweed": {
+            title_key: "Blue porterweed",
+            methods_keys: [
+                "Manual removal",
+                "Containment",
+                "Herbicides",
+            ],
+            notes_key: "Blue porterweed"
+        },
+        "Santa Maria feverfew": {
+            title_key: "Santa Maria feverfew",
+            methods_keys: [
+                "Manual removal",
+                "Early detection",
+                "Biological control",
+            ],
+            notes_key: "Santa Maria feverfew"
+        },
+        "Water hyacinth": {
+            title_key: "Water hyacinth",
+            methods_keys: [
+                "Manual removal",
+                "Biological control",
+                "Herbicides",
+            ],
+            notes_key: "Water hyacinth"
+        },
+        "Climbing dayflower": {
+            title_key: "Climbing dayflower",
+            methods_keys: [
+                "Manual removal",
+                "Repeated mowing/trimming",
+                "Herbicides",
+            ],
+            notes_key: "Climbing dayflower"
+        },
+        "Common plantain": {
+            title_key: "Common plantain",
+            methods_keys: [
+                "Manual removal",
+                "Improve soil health",
+                "Herbicides",
+            ],
+            notes_key: "Common plantain"
+        },
+        "Arrowleaf sida": {
+            title_key: "Arrowleaf sida",
+            methods_keys: [
+                "Manual removal",
+                "Mowing",
+                "Herbicides",
+            ],
+            notes_key: "Arrowleaf sida"
+        },
+        "Oriental false hawksbeard": {
+            title_key: "Oriental false hawksbeard",
+            methods_keys: [
+                "Manual removal",
+                "Mowing",
+                "Herbicides",
+            ],
+            notes_key: "Oriental false hawksbeard"
+        },
+        "Unknown Weed": {
+            title_key: "Unknown Weed",
+            methods_keys: [
+                "Manual removal",
+                "Improve soil health",
+                "Consult an expert",
+            ],
+            notes_key: "Unknown Weed"
+        }
+    };
+
 
     useEffect(() => {
         if (classifiedWeeds && classifiedWeeds.length > 0 && !selectedWeedType) {
@@ -236,13 +400,15 @@ const TreatmentPlan = ({ classifiedWeeds }) => {
 
     return (
         <div style={treatmentPlanStyles.container}>
-            <h2>Weed Treatment Plan</h2>
+            <h2>{getEnglishString('weed_treatment_plan_header')}</h2>
             {classifiedWeeds.length === 0 ? (
-                <p>No weeds detected yet, or data not loaded.</p>
+                <p>{getEnglishString('no_weeds_detected')}</p>
             ) : (
                 <>
                     <div style={treatmentPlanStyles.weedTypeSelector}>
-                        <label htmlFor="weed-type-select">Select Weed Type:</label>
+                        <label htmlFor="weed-type-select">
+                            {getEnglishString('select_weed_type_label')}
+                        </label>
                         <select
                             id="weed-type-select"
                             value={selectedWeedType}
@@ -250,20 +416,28 @@ const TreatmentPlan = ({ classifiedWeeds }) => {
                             style={treatmentPlanStyles.select}
                         >
                             {displayWeedTypes.map((type, index) => (
-                                <option key={index} value={type}>{type}</option>
+                                <option key={index} value={type}>
+                                    {englishStrings.weed_types[type]}
+                                </option>
                             ))}
                         </select>
                     </div>
                     {recommendation && (
                         <div style={treatmentPlanStyles.recommendationDetails}>
-                            <h3>{recommendation.title}</h3>
-                            <h4>Recommended Methods:</h4>
+                            <h3>
+                                {englishStrings.weed_types[recommendation.title_key]} {getEnglishString('control_label')}
+                            </h3>
+                            <h4>{getEnglishString('recommendation_title')}</h4>
                             <ul style={treatmentPlanStyles.ul}>
-                                {recommendation.methods.map((method, index) => (
-                                    <li key={index} style={treatmentPlanStyles.li}>{method}</li>
+                                {recommendation.methods_keys.map((method_key, index) => (
+                                    <li key={index} style={treatmentPlanStyles.li}>
+                                        {englishStrings.treatment_methods[method_key]}
+                                    </li>
                                 ))}
                             </ul>
-                            <p style={treatmentPlanStyles.notes}>**Notes:** {recommendation.notes}</p>
+                            <p style={treatmentPlanStyles.notes}>
+                                **{getEnglishString('notes_prefix')}** {englishStrings.treatment_notes[recommendation.notes_key]}
+                            </p>
                         </div>
                     )}
                 </>
@@ -311,20 +485,20 @@ const treatmentPlanStyles = {
     }
 };
 
-// --- Component 4: WeatherForecast (now embedded) ---
+// --- Component 4: WeatherForecast ---
 const WeatherForecast = ({ latitude = 18.59, longitude = -72.33 }) => { // Default to Port-au-Prince
     const [weatherData, setWeatherData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const API_KEY = 'YOUR_OPENWEATHERMAP_API_KEY'; // <<< GET YOUR API KEY HERE!
+    const API_KEY = 'eb5d6ac67ad139256ed22dc56b98b902';
 
     useEffect(() => {
         const fetchWeather = async () => {
             setLoading(true);
             setError(null);
             if (API_KEY === 'YOUR_OPENWEATHERMAP_API_KEY' || !API_KEY) {
-                setError("Please replace 'YOUR_OPENWEATHERMAP_API_KEY' with your actual OpenWeatherMap API key.");
+                setError(getEnglishString("open_weather_api_key_error"));
                 setLoading(false);
                 return;
             }
@@ -342,7 +516,7 @@ const WeatherForecast = ({ latitude = 18.59, longitude = -72.33 }) => { // Defau
                 });
             } catch (err) {
                 console.error("Error fetching weather data:", err);
-                setError("Failed to fetch weather data. Please check your API key and internet connection.");
+                setError(getEnglishString("failed_to_fetch_weather_data"));
             } finally {
                 setLoading(false);
             }
@@ -356,45 +530,45 @@ const WeatherForecast = ({ latitude = 18.59, longitude = -72.33 }) => { // Defau
     const getWeatherIconUrl = (iconCode) => `http://openweathermap.org/img/wn/${iconCode}@2x.png`;
 
     const getFarmingRecommendation = (temp, rain) => {
-        if (rain > 0.5) return "Rain expected: Avoid spraying today.";
-        if (temp > 30) return "Very hot: Consider early morning/late evening activities.";
-        if (temp < 10) return "Cold: Check crop tolerance.";
-        return "Favorable conditions for field work.";
+        if (rain > 0.5) return getEnglishString("rain_expected_tip");
+        if (temp > 30) return getEnglishString("hot_tip");
+        if (temp < 10) return getEnglishString("cold_tip");
+        return getEnglishString("favorable_tip");
     };
 
-    if (loading) { return <div style={weatherStyles.container}>Loading weather...</div>; }
+    if (loading) { return <div style={weatherStyles.container}>{getEnglishString('loading_weather')}</div>; }
     if (error) { return <div style={{...weatherStyles.container, ...weatherStyles.error}}>{error}</div>; }
-    if (!weatherData) { return <div style={weatherStyles.container}>No weather data available.</div>; }
+    if (!weatherData) { return <div style={weatherStyles.container}>{getEnglishString('no_weather_data')}</div>; }
 
     const { current, forecast } = weatherData;
 
     return (
         <div style={weatherStyles.container}>
-            <h2>Weather Forecast for {current.name}</h2>
+            <h2>{getEnglishString('weather_forecast_header', current.name)}</h2>
             <div style={weatherStyles.currentWeather}>
-                <h3>Current Conditions</h3>
+                <h3>{getEnglishString('current_conditions_header')}</h3>
                 <div style={weatherStyles.weatherDetails}>
                     <img src={getWeatherIconUrl(current.weather[0].icon)} alt={current.weather[0].description} style={weatherStyles.icon}/>
                     <p style={weatherStyles.p}>{current.weather[0].description}</p>
-                    <p style={weatherStyles.p}>Temperature: {current.main.temp}°C</p>
-                    <p style={weatherStyles.p}>Humidity: {current.main.humidity}%</p>
-                    <p style={weatherStyles.p}>Wind: {current.wind.speed} m/s</p>
-                    {current.rain && current.rain['1h'] && <p style={weatherStyles.p}>Rain (1h): {current.rain['1h']} mm</p>}
+                    <p style={weatherStyles.p}>{getEnglishString('temperature_label')} {current.main.temp}°C</p>
+                    <p style={weatherStyles.p}>{getEnglishString('humidity_label')} {current.main.humidity}%</p>
+                    <p style={weatherStyles.p}>{getEnglishString('wind_label')} {current.wind.speed} m/s</p>
+                    {current.rain && current.rain['1h'] && <p style={weatherStyles.p}>{getEnglishString('rain_label')} {current.rain['1h']} mm</p>}
                 </div>
                 <p style={weatherStyles.farmingRecommendation}>
-                    **Farming Tip:** {getFarmingRecommendation(current.main.temp, current.rain ? current.rain['1h'] || 0 : 0)}
+                    **{getEnglishString('farming_tip_prefix')}** {getFarmingRecommendation(current.main.temp, current.rain ? current.rain['1h'] || 0 : 0)}
                 </p>
             </div>
             <div style={weatherStyles.fiveDayForecast}>
-                <h3>5-Day Forecast</h3>
+                <h3>{getEnglishString('five_day_forecast_header')}</h3>
                 <div style={weatherStyles.forecastList}>
                     {forecast.map((day, index) => (
                         <div key={index} style={weatherStyles.forecastDay}>
                             <p style={weatherStyles.date}>{new Date(day.dt * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                             <img src={getWeatherIconUrl(day.weather[0].icon)} alt={day.weather[0].description} style={weatherStyles.iconSmall}/>
                             <p style={weatherStyles.pSmall}>{day.weather[0].description}</p>
-                            <p style={weatherStyles.pSmall}>Temp: {day.main.temp}°C</p>
-                            {day.pop && <p style={weatherStyles.pSmall}>Rain Prob: {(day.pop * 100).toFixed(0)}%</p>}
+                            <p style={weatherStyles.pSmall}>{getEnglishString('temperature_label')} {day.main.temp}°C</p>
+                            {day.pop && <p style={weatherStyles.pSmall}>{getEnglishString('rain_probability_label')} {(day.pop * 100).toFixed(0)}%</p>}
                         </div>
                     ))}
                 </div>
@@ -420,7 +594,6 @@ const weatherStyles = {
         display: 'flex',
         alignItems: 'center',
         gap: '15px',
-        marginBottom: '10px',
         flexWrap: 'wrap',
     },
     icon: { width: '60px', height: '60px' },
@@ -455,6 +628,7 @@ const weatherStyles = {
     pSmall: { margin: '5px 0', fontSize: '0.9em', color: '#555' }
 };
 
+
 // --- Main App Component (Dashboard) ---
 function App() {
     const [currentImage, setCurrentImage] = useState(null);
@@ -463,6 +637,12 @@ function App() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const [uploadedImagePreview, setUploadedImagePreview] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState(null);
+    // New state to control the visibility of the instruction modal
+    const [showInstructions, setShowInstructions] = useState(false);
+
     const BACKEND_URL = 'http://localhost:5000/api'; // Make sure this matches your Flask server URL
 
     useEffect(() => {
@@ -470,16 +650,17 @@ function App() {
             setLoading(true);
             setError(null);
             try {
-                const imageResponse = await axios.get(`${BACKEND_URL}/latest_image`);
-                setCurrentImage({
-                    url: imageResponse.data.imageUrl,
-                    // Map backend detections to frontend format with calculated lat/lng if needed
-                    detections: imageResponse.data.detections.map(det => ({
-                        ...det,
-                        lat: imageResponse.data.droneLat + det.lat_offset,
-                        lng: imageResponse.data.droneLng + det.lng_offset,
-                    }))
-                });
+                if (!uploadedImagePreview && !uploading) {
+                    const imageResponse = await axios.get(`${BACKEND_URL}/latest_image`);
+                    setCurrentImage({
+                        url: imageResponse.data.imageUrl,
+                        detections: imageResponse.data.detections.map(det => ({
+                            ...det,
+                            lat: imageResponse.data.droneLat + det.lat_offset,
+                            lng: imageResponse.data.droneLng + det.lng_offset,
+                        }))
+                    });
+                }
 
                 const locationsResponse = await axios.get(`${BACKEND_URL}/weed_locations`);
                 setWeedLocations(locationsResponse.data);
@@ -489,14 +670,80 @@ function App() {
 
             } catch (err) {
                 console.error("Error fetching dashboard data:", err);
-                setError(`Failed to load dashboard data. Is the backend running at ${BACKEND_URL}?`);
+                setError(getEnglishString('error_loading_dashboard', BACKEND_URL));
             } finally {
                 setLoading(false);
             }
         };
 
         fetchDashboardData();
-    }, [BACKEND_URL]);
+        const intervalId = setInterval(fetchDashboardData, 300000); // Refresh every 5 minutes
+        return () => clearInterval(intervalId);
+    }, [BACKEND_URL, uploadedImagePreview, uploading]);
+
+
+    const handleImageUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        if (!file.type.startsWith('image/')) {
+            setUploadError(getEnglishString("upload_error"));
+            return;
+        }
+
+        setUploading(true);
+        setUploadError(null);
+        setUploadedImagePreview(null);
+        setCurrentImage(null);
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const imageDataUrl = reader.result;
+
+            setUploadedImagePreview(imageDataUrl);
+
+            try {
+                const response = await axios.post(`${BACKEND_URL}/upload_image`, {
+                    image: imageDataUrl
+                });
+
+                const { detections, droneLat, droneLng } = response.data;
+
+                setCurrentImage({
+                    url: imageDataUrl,
+                    detections: detections.map(det => ({
+                        ...det,
+                        lat: droneLat + det.lat_offset,
+                        lng: droneLng + det.lng_offset,
+                    }))
+                });
+
+                setWeedLocations(prevLocations => [
+                    ...prevLocations,
+                    ...detections.map(det => ({
+                        lat: droneLat + det.lat_offset,
+                        lng: droneLng + det.lng_offset,
+                        weedType: det.weedType,
+                        confidence: det.confidence
+                    }))
+                ]);
+
+            } catch (err) {
+                console.error("Error uploading image:", err);
+                setUploadError(getEnglishString("upload_failed"));
+                setCurrentImage({
+                    url: "https://via.placeholder.com/800x600/FF0000/FFFFFF?text=Error+Loading+Image",
+                    detections: []
+                });
+            } finally {
+                setUploading(false);
+            }
+        };
+
+        reader.readAsDataURL(file);
+    };
 
     return (
         <div style={appStyles.dashboard}>
@@ -513,49 +760,78 @@ function App() {
                 }
             `}</style>
             <header style={appStyles.dashboardHeader}>
-                <h1>Haiti Agri-Tech Dashboard</h1>
-                <p>Weed Detection & Management for Farmers</p>
+                <h1>{getEnglishString('app_title')}</h1>
+                <p>{getEnglishString('app_slogan')}</p>
+                {/* Button to open instructions */}
+                <button onClick={() => setShowInstructions(true)} style={appStyles.instructionButton}>
+                    View Instructions in Kreyòl
+                </button>
             </header>
 
             <main style={appStyles.dashboardContent}>
-                {loading ? (
-                    <div style={appStyles.dashboardLoading}>Loading dashboard data...</div>
-                ) : error ? (
-                    <div style={appStyles.dashboardError}>{error}</div>
-                ) : (
-                    <>
-                        <section style={{...appStyles.dashboardSection, ...appStyles.imageSection}}>
-                            <h2>Latest Drone Capture & Weed Detections</h2>
-                            {currentImage && (
-                                <ImageDisplay
-                                    imageUrl={currentImage.url}
-                                    detections={currentImage.detections}
-                                />
-                            )}
-                        </section>
+                <section style={{...appStyles.dashboardSection, ...appStyles.imageSection}}>
+                    <h2>{getEnglishString('upload_section_header')}</h2>
+                    <div style={uploadStyles.container}>
+                        <label htmlFor="image-upload" style={uploadStyles.button}>
+                            {uploading ? getEnglishString('uploading_button') : getEnglishString('choose_image_button')}
+                        </label>
+                        <input
+                            type="file"
+                            id="image-upload"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            style={uploadStyles.input}
+                            disabled={uploading}
+                        />
+                        {uploadError && <p style={uploadStyles.error}>{uploadError}</p>}
+                        {uploadedImagePreview && (
+                            <p style={uploadStyles.success}>{getEnglishString('upload_success')}</p>
+                        )}
+                    </div>
 
-                        <section style={{...appStyles.dashboardSection, ...appStyles.mapSection}}>
-                            <h2>Weed Distribution Map</h2>
-                            <WeedMap weedLocations={weedLocations} />
-                            <p style={appStyles.mapInfo}>Red areas indicate higher weed density.</p>
-                        </section>
+                    {uploading ? (
+                        <p style={appStyles.dashboardLoading}>{getEnglishString('processing_image')}</p>
+                    ) : error ? (
+                        <div style={appStyles.dashboardError}>{error}</div>
+                    ) : currentImage ? (
+                        <>
+                            <h2>{getEnglishString('current_image_header')}</h2>
+                            <ImageDisplay
+                                imageUrl={currentImage.url}
+                                detections={currentImage.detections}
+                            />
+                            <p style={appStyles.mapInfo}>
+                                {getEnglishString('map_info_latest', uploadedImagePreview ? getEnglishString('uploaded_image') : getEnglishString('latest_drone_image'))}
+                            </p>
+                        </>
+                    ) : (
+                        <p style={appStyles.dashboardLoading}>{getEnglishString('loading_image_data')}</p>
+                    )}
+                </section>
 
-                        <div style={appStyles.flexContainer}>
-                            <section style={{...appStyles.dashboardSection, ...appStyles.treatmentSection, ...appStyles.flexItem}}>
-                                <TreatmentPlan classifiedWeeds={classifiedWeeds} />
-                            </section>
+                <section style={{...appStyles.dashboardSection, ...appStyles.mapSection}}>
+                    <h2>{getEnglishString('weed_map_header')}</h2>
+                    <WeedMap weedLocations={weedLocations} />
+                    <p style={appStyles.mapInfo}>{getEnglishString('map_info_dots')}</p>
+                </section>
 
-                            <section style={{...appStyles.dashboardSection, ...appStyles.weatherSection, ...appStyles.flexItem}}>
-                                <WeatherForecast />
-                            </section>
-                        </div>
-                    </>
-                )}
+                <div style={appStyles.flexContainer}>
+                    <section style={{...appStyles.dashboardSection, ...appStyles.treatmentSection, ...appStyles.flexItem}}>
+                        <TreatmentPlan classifiedWeeds={classifiedWeeds} />
+                    </section>
+
+                    <section style={{...appStyles.dashboardSection, ...appStyles.weatherSection, ...appStyles.flexItem}}>
+                        <WeatherForecast />
+                    </section>
+                </div>
             </main>
 
             <footer style={appStyles.dashboardFooter}>
-                <p>&copy; 2025 Haiti Hackathon Team. Empowering Farmers with Technology.</p>
+                <p>{getEnglishString('footer_text')}</p>
             </footer>
+
+            {/* Render the LanguageInstructions modal if showInstructions is true */}
+            {showInstructions && <LanguageInstructions onClose={() => setShowInstructions(false)} />}
         </div>
     );
 }
@@ -574,6 +850,21 @@ const appStyles = {
         padding: '20px',
         borderRadius: '8px',
         boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+        position: 'relative', // Needed for absolute positioning of the button
+    },
+    instructionButton: {
+        position: 'absolute',
+        top: '15px',
+        right: '20px',
+        padding: '8px 15px',
+        backgroundColor: '#28a745',
+        color: 'white',
+        border: 'none',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontSize: '0.9em',
+        fontWeight: 'bold',
+        transition: 'background-color 0.2s ease',
     },
     dashboardContent: {
         display: 'flex',
@@ -623,6 +914,40 @@ const appStyles = {
         backgroundColor: '#ffe0e0',
         borderRadius: '8px',
     },
+};
+
+const uploadStyles = {
+    container: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        marginBottom: '20px',
+        marginTop: '10px',
+    },
+    input: {
+        display: 'none',
+    },
+    button: {
+        backgroundColor: '#28a745',
+        color: 'white',
+        padding: '10px 20px',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontSize: '1em',
+        border: 'none',
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+        transition: 'background-color 0.2s ease',
+    },
+    error: {
+        color: 'red',
+        marginTop: '10px',
+        fontSize: '0.9em',
+    },
+    success: {
+        color: '#28a745',
+        marginTop: '10px',
+        fontSize: '0.9em',
+    }
 };
 
 export default App;
